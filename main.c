@@ -409,6 +409,7 @@ int main
   int scfilter_level = 0, lock_memory = 0, sched_priority = 0;
   int clock_control = 1, system_log = 1, log_severity = LOGS_INFO;
   int config_args = 0;
+  int systemd = 0;
 
   do_platform_checks();
 
@@ -428,7 +429,7 @@ int main
   optind = 1;
 
   /* Parse short command-line options */
-  while ((opt = getopt(argc, argv, "46df:F:hl:L:mnP:qQrRst:u:vx")) != -1) {
+  while ((opt = getopt(argc, argv, "46df:F:hl:L:mnP:qQrRsSt:u:vx")) != -1) {
     switch (opt) {
       case '4':
       case '6':
@@ -482,6 +483,10 @@ int main
       case 's':
         do_init_rtc = 1;
         break;
+      case 'S':
+	systemd = 1;
+	nofork = 1;
+	break ;
       case 't':
         timeout = parse_int_arg(optarg);
         break;
@@ -500,7 +505,7 @@ int main
     }
   }
 
-  if (getuid() && !client_only)
+  if (getuid() && !client_only && !systemd)
     LOG_FATAL("Not superuser");
 
   /* Turn into a daemon */
@@ -520,7 +525,7 @@ int main
 
   DNS_SetAddressFamily(address_family);
 
-  CNF_Initialise(restarted, client_only);
+  CNF_Initialise(restarted, client_only, systemd);
 
   /* Parse the config file or the remaining command line arguments */
   config_args = argc - optind;
@@ -532,7 +537,8 @@ int main
   }
 
   /* Check whether another chronyd may already be running */
-  check_pidfile();
+  if (!systemd)
+    check_pidfile();
 
   if (!user)
     user = CNF_GetUser();
@@ -545,7 +551,8 @@ int main
   CNF_CreateDirs(pw->pw_uid, pw->pw_gid);
 
   /* Write our pidfile to prevent other instances from running */
-  write_pidfile();
+  if (!systemd)
+    write_pidfile();
 
   PRV_Initialise();
   LCL_Initialise();
@@ -576,7 +583,7 @@ int main
   }
 
   /* Drop root privileges if the specified user has a non-zero UID */
-  if (!geteuid() && (pw->pw_uid || pw->pw_gid))
+  if ((!geteuid() && (pw->pw_uid || pw->pw_gid)) && !systemd)
     SYS_DropRoot(pw->pw_uid, pw->pw_gid);
 
   REF_Initialise();

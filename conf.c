@@ -323,7 +323,7 @@ check_number_of_args(char *line, int num)
 /* ================================================== */
 
 void
-CNF_Initialise(int r, int client_only)
+CNF_Initialise(int r, int client_only, int systemd)
 {
   restarted = r;
 
@@ -341,12 +341,26 @@ CNF_Initialise(int r, int client_only)
   logdir = Strdup("");
   rtc_device = Strdup(DEFAULT_RTC_DEVICE);
   hwclock_file = Strdup(DEFAULT_HWCLOCK_FILE);
-  user = Strdup(DEFAULT_USER);
-
+  if (!systemd) {
+    user = Strdup(DEFAULT_USER);
+  }
   if (client_only) {
     cmd_port = ntp_port = 0;
     bind_cmd_path = Strdup("");
     pidfile = Strdup("");
+  } else if (systemd) {
+      struct passwd *pw;
+      uid_t uid;
+
+      uid = geteuid();
+      pw = getpwuid(uid);
+      if (pw) {
+        user = Strdup(pw->pw_name);
+      } else {
+        LOG_FATAL("Could not get username for UID %u", uid);
+      }
+      bind_cmd_path = Strdup(DEFAULT_COMMAND_SOCKET);
+      pidfile = Strdup("");
   } else {
     bind_cmd_path = Strdup(DEFAULT_COMMAND_SOCKET);
     pidfile = Strdup(DEFAULT_PID_FILE);
